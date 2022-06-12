@@ -12,3 +12,10 @@ Changelog
 ------------------
 
 * Added person detection.
+
+0.0.2 (2022-06-11)
+------------------
+
+* Changed person detection to support video file input.
+* Fixed naming conventions.
+* Removed extraneous elements.

@@ -3,10 +3,12 @@
 
 import cv2
 import depthai as dai
+import math
+from calc import HostSpatialsCalc
+from utility import *
 import time
 
-# new
-newConfig = True
+# Note: anywhere I commented the word new below that is what i copied from spatial_location_calculator from depthai
 
 # Create pipeline
 pipeline = dai.Pipeline()
@@ -16,7 +18,7 @@ camRgb = pipeline.create(dai.node.ColorCamera)
 aprilTag = pipeline.create(dai.node.AprilTag)
 manip = pipeline.create(dai.node.ImageManip)
 
-# new adds
+# new
 monoLeft = pipeline.create(dai.node.MonoCamera)
 monoRight = pipeline.create(dai.node.MonoCamera)
 stereo = pipeline.create(dai.node.StereoDepth)
@@ -99,6 +101,11 @@ with dai.Device(pipeline) as device:
     spatialCalcQueue = device.getOutputQueue(name="spatialData", maxSize=4, blocking=False)
     spatialCalcConfigInQueue = device.getInputQueue("spatialCalcConfig")
 
+    text = TextHelper()
+    hostSpatials = HostSpatialsCalc(device) # Conversion to depth functions class
+    roi_radius = 10
+    hostSpatials.setDeltaRoi(roi_radius)
+
     color = (0, 255, 0)
 
     startTime = time.monotonic()
@@ -112,10 +119,6 @@ with dai.Device(pipeline) as device:
         inDepth = depthQueue.get()  # Blocking call, will wait until a new data has arrived
 
         depthFrame = inDepth.getFrame()  # depthFrame values are in millimeters in numpy array
-
-        print(depthFrame.ndim)
-        print(depthFrame.shape)
-        print(depthFrame.dtype)
 
         depthFrameColor = cv2.normalize(depthFrame, None, 255, 0, cv2.NORM_INF, cv2.CV_8UC1)
         depthFrameColor = cv2.equalizeHist(depthFrameColor)
@@ -136,10 +139,10 @@ with dai.Device(pipeline) as device:
             topRight = aprilTag.topRight
             bottomRight = aprilTag.bottomRight
             bottomLeft = aprilTag.bottomLeft
-            print("topLeft is {}, {}".format(topLeft.x, topLeft.y))
-            print("topRight is {}, {}".format(topRight.x, topRight.y))
-            print("bottomRight is {}, {}".format(bottomRight.x, bottomRight.y))
-            print("bottomLeft is {}, {}".format(bottomLeft.x, bottomLeft.y))
+            # print("topLeft is {}, {}".format(topLeft.x, topLeft.y))
+            # print("topRight is {}, {}".format(topRight.x, topRight.y))
+            # print("bottomRight is {}, {}".format(bottomRight.x, bottomRight.y))
+            # print("bottomLeft is {}, {}".format(bottomLeft.x, bottomLeft.y))
 
             center = (int((topLeft.x + bottomRight.x) / 2), int((topLeft.y + bottomRight.y) / 2))
             cv2.circle(frame, center, 5, (0, 0, 255), -1)
@@ -156,32 +159,43 @@ with dai.Device(pipeline) as device:
             idStr = "ID: " + str(aprilTag.id)
             cv2.putText(frame, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
 
+            ## DEAL WITH DEPTH
+            x = center[0]
+            y = center[1]
+            spatials, centroid = hostSpatials.calc_spatials(depthFrame, center)  # centroid == x/y in our case
+            text.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
+            text.putText(depthFrameColor,
+                         "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
+                         (x + 10, y + 20))
+            text.putText(depthFrameColor,
+                         "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
+                         (x + 10, y + 35))
+            text.putText(depthFrameColor,
+                         "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
+                         (x + 10, y + 50))
+
             # new
-            spatialData = spatialCalcQueue.get().getSpatialLocations()
-            for depthData in spatialData:
-                topLeft = aprilTag.topLeft
-                topRight = aprilTag.topRight
-                bottomRight = aprilTag.bottomRight
-                bottomLeft = aprilTag.bottomLeft
-                roi = depthData.config.roi
-                roi = roi.denormalize(width=depthFrameColor.shape[1], height=depthFrameColor.shape[0])
-                xmin = int(roi.topLeft().x)
-                ymin = int(roi.topLeft().y)
-                xmax = int(roi.bottomRight().x)
-                ymax = int(roi.bottomRight().y)
-
-                depthMin = depthData.depthMin
-                depthMax = depthData.depthMax
-
-                fontType = cv2.FONT_HERSHEY_TRIPLEX
-                cv2.rectangle(depthFrameColor, (xmin, ymin), (xmax, ymax), color, cv2.FONT_HERSHEY_SCRIPT_SIMPLEX)
-
-                cv2.putText(depthFrameColor, f"X: {int(depthData.spatialCoordinates.x)} mm", (xmin + 10, ymin + 20),
-                            fontType, 0.5, 255)
-                cv2.putText(depthFrameColor, f"Y: {int(depthData.spatialCoordinates.y)} mm", (xmin + 10, ymin + 35),
-                            fontType, 0.5, 255)
-                cv2.putText(depthFrameColor, f"Z: {int(depthData.spatialCoordinates.z)} mm", (xmin + 10, ymin + 50),
-                            fontType, 0.5, 255)
+            # spatialData = spatialCalcQueue.get().getSpatialLocations()
+            # for depthData in spatialData:
+            #     roi = depthData.config.roi
+            #     roi = roi.denormalize(width=depthFrameColor.shape[1], height=depthFrameColor.shape[0])
+            #     xmin = int(roi.topLeft().x)
+            #     ymin = int(roi.topLeft().y)
+            #     xmax = int(roi.bottomRight().x)
+            #     ymax = int(roi.bottomRight().y)
+            #
+            #     depthMin = depthData.depthMin
+            #     depthMax = depthData.depthMax
+            #
+            #     fontType = cv2.FONT_HERSHEY_TRIPLEX
+            #     cv2.rectangle(depthFrameColor, (xmin, ymin), (xmax, ymax), color, cv2.FONT_HERSHEY_SCRIPT_SIMPLEX)
+            #
+            #     cv2.putText(depthFrameColor, f"X: {int(depthData.spatialCoordinates.x)} mm", (xmin + 10, ymin + 20),
+            #                 fontType, 0.5, 255)
+            #     cv2.putText(depthFrameColor, f"Y: {int(depthData.spatialCoordinates.y)} mm", (xmin + 10, ymin + 35),
+            #                 fontType, 0.5, 255)
+            #     cv2.putText(depthFrameColor, f"Z: {int(depthData.spatialCoordinates.z)} mm", (xmin + 10, ymin + 50),
+            #                 fontType, 0.5, 255)
 
         cv2.putText(frame, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4,
                     (255, 255, 255))

@@ -19,3 +19,10 @@ Changelog
 * Changed person detection to support video file input.
 * Fixed naming conventions.
 * Removed extraneous elements.
+
+0.0.3 (2022-06-14)
+------------------
+
+* Added support for both live camera input and video input.
+* Added depth for live camera input.
+

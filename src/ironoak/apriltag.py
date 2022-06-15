@@ -7,7 +7,7 @@ from calc import HostSpatialsCalc
 from utility import *
 import numpy as np
 import math
-
+from pupil_apriltags import Detector
 
 # Create pipeline
 pipeline = dai.Pipeline()
@@ -31,6 +31,15 @@ monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
 monoLeft.setBoardSocket(dai.CameraBoardSocket.LEFT)
 
 aprilTag.initialConfig.setFamily(dai.AprilTagConfig.Family.TAG_36H11)
+
+## from https://pypi.org/project/pupil-apriltags/
+at_detector = Detector(families='tag36h11',
+                       nthreads=1,
+                       quad_decimate=1.0,
+                       quad_sigma=0.0,
+                       refine_edges=1,
+                       decode_sharpening=0.25,
+                       debug=0)
 
 # From main_calc
 monoRight.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
@@ -120,20 +129,29 @@ with dai.Device(pipeline) as device:
         monoFrame = inFrame.getFrame()
         frame = cv2.cvtColor(monoFrame, cv2.COLOR_GRAY2BGR)
 
-        aprilTagData = aprilTagQueue.get().aprilTags
-        for aprilTag in aprilTagData:
-            topLeft = aprilTag.topLeft
-            topRight = aprilTag.topRight
-            bottomRight = aprilTag.bottomRight
-            bottomLeft = aprilTag.bottomLeft
+        ## On host, pupil april tag detector
+        grayframe = frame[:,:,0]
+        tags = at_detector.detect(grayframe, estimate_tag_pose=False, camera_params=None, tag_size=None)
+        i = 0
+        for at in tags:
+            topLeft = at.corners[0]
+            bottomLeft = at.corners[1]
+            bottomRight = at.corners[2]
+            topRight = at.corners[3]
 
-            center = (int((topLeft.x + bottomRight.x) / 2), int((topLeft.y + bottomRight.y) / 2))
-            cv2.circle(frame, center, 5, (0, 0, 255), -1)
+            grayframe = frame
 
-            cv2.line(frame, (int(topLeft.x), int(topLeft.y)), (int(topRight.x), int(topRight.y)), color, 2, cv2.LINE_AA, 0)
-            cv2.line(frame, (int(topRight.x), int(topRight.y)), (int(bottomRight.x), int(bottomRight.y)), color, 2, cv2.LINE_AA, 0)
-            cv2.line(frame, (int(bottomRight.x), int(bottomRight.y)), (int(bottomLeft.x), int(bottomLeft.y)), color, 2, cv2.LINE_AA, 0)
-            cv2.line(frame, (int(bottomLeft.x), int(bottomLeft.y)), (int(topLeft.x), int(topLeft.y)), color, 2, cv2.LINE_AA, 0)
+            center = (int((topLeft[0] + bottomRight[0]) / 2), int((topLeft[1] + bottomRight[1]) / 2))
+            cv2.circle(grayframe, center, 5, (0, 0, 255), -1)
+
+            cv2.line(grayframe, (int(topLeft[0]), int(topLeft[1])), (int(topRight[0]), int(topRight[1])), color, 2, cv2.LINE_AA,
+                     0)
+            cv2.line(grayframe, (int(topRight[0]), int(topRight[1])), (int(bottomRight[0]), int(bottomRight[1])), color, 2,
+                     cv2.LINE_AA, 0)
+            cv2.line(grayframe, (int(bottomRight[0]), int(bottomRight[1])), (int(bottomLeft[0]), int(bottomLeft[1])), color, 2,
+                     cv2.LINE_AA, 0)
+            cv2.line(grayframe, (int(bottomLeft[0]), int(bottomLeft[1])), (int(topLeft[0]), int(topLeft[1])), color, 2,
+                     cv2.LINE_AA, 0)
 
             idStr = "ID: " + str(aprilTag.id)
             cv2.putText(frame, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
@@ -141,7 +159,7 @@ with dai.Device(pipeline) as device:
             ## DEAL WITH DEPTH
             x = center[0]
             y = center[1]
-            print(x, y)
+
             spatials, centroid = hostSpatials.calc_spatials(depthFrame, center)  # centroid == x/y in our case
             cv2.circle(depthFrameColor, center, 5, (0, 0, 255), -1)
 
@@ -155,36 +173,106 @@ with dai.Device(pipeline) as device:
             text.putText(depthFrameColor,
                          "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
                          (x + 10, y + 50))
-            cv2.line(depthFrameColor, (int(topLeft.x), int(topLeft.y)), (int(topRight.x), int(topRight.y)), color, 2, cv2.LINE_AA,
+            cv2.line(depthFrameColor, (int(topLeft[0]), int(topLeft[1])), (int(topRight[0]), int(topRight[1])), color, 2,
+                     cv2.LINE_AA,
                      0)
-            cv2.line(depthFrameColor, (int(topRight.x), int(topRight.y)), (int(bottomRight.x), int(bottomRight.y)), color, 2,
+            cv2.line(depthFrameColor, (int(topRight[0]), int(topRight[1])), (int(bottomRight[0]), int(bottomRight[1])), color,
+                     2,
                      cv2.LINE_AA, 0)
-            cv2.line(depthFrameColor, (int(bottomRight.x), int(bottomRight.y)), (int(bottomLeft.x), int(bottomLeft.y)), color, 2,
+            cv2.line(depthFrameColor, (int(bottomRight[0]), int(bottomRight[1])), (int(bottomLeft[0]), int(bottomLeft[1])),
+                     color, 2,
                      cv2.LINE_AA, 0)
-            cv2.line(depthFrameColor, (int(bottomLeft.x), int(bottomLeft.y)), (int(topLeft.x), int(topLeft.y)), color, 2,
+            cv2.line(depthFrameColor, (int(bottomLeft[0]), int(bottomLeft[1])), (int(topLeft[0]), int(topLeft[1])), color, 2,
                      cv2.LINE_AA, 0)
+
+
             cv2.putText(depthFrameColor, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
 
             # For apriltag
-            text.rectangle(frame, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
+            text.rectangle(grayframe, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
             text.putText(frame,
                          "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
                          (x + 10, y + 20))
-            text.putText(frame,
+            text.putText(grayframe,
                          "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
                          (x + 10, y + 35))
-            text.putText(frame,
+            text.putText(grayframe,
                          "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
                          (x + 10, y + 50))
 
-            cv2.putText(frame, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255,255,255))
+            cv2.putText(grayframe, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4,
+                        (255, 255, 255))
 
-            cv2.imshow("mono", frame)
+        cv2.imshow("mono", grayframe)
 
-            # Show the frame
-            cv2.imshow("depth", depthFrameColor)
+        # Show the frame
+        cv2.imshow("depth", depthFrameColor)
 
+        # aprilTagData = aprilTagQueue.get().aprilTags
+        # for aprilTag in aprilTagData:
+        #     topLeft = aprilTag.topLeft
+        #     topRight = aprilTag.topRight
+        #     bottomRight = aprilTag.bottomRight
+        #     bottomLeft = aprilTag.bottomLeft
+        #
+        #     center = (int((topLeft.x + bottomRight.x) / 2), int((topLeft.y + bottomRight.y) / 2))
+        #     cv2.circle(frame, center, 5, (0, 0, 255), -1)
+        #
+        #     cv2.line(frame, (int(topLeft.x), int(topLeft.y)), (int(topRight.x), int(topRight.y)), color, 2, cv2.LINE_AA, 0)
+        #     cv2.line(frame, (int(topRight.x), int(topRight.y)), (int(bottomRight.x), int(bottomRight.y)), color, 2, cv2.LINE_AA, 0)
+        #     cv2.line(frame, (int(bottomRight.x), int(bottomRight.y)), (int(bottomLeft.x), int(bottomLeft.y)), color, 2, cv2.LINE_AA, 0)
+        #     cv2.line(frame, (int(bottomLeft.x), int(bottomLeft.y)), (int(topLeft.x), int(topLeft.y)), color, 2, cv2.LINE_AA, 0)
+        #
+        #     idStr = "ID: " + str(aprilTag.id)
+        #     cv2.putText(frame, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
 
+            # ## DEAL WITH DEPTH
+            # x = center[0]
+            # y = center[1]
+            #
+            # spatials, centroid = hostSpatials.calc_spatials(depthFrame, center)  # centroid == x/y in our case
+            # cv2.circle(depthFrameColor, center, 5, (0, 0, 255), -1)
+            #
+            # text.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
+            # text.putText(depthFrameColor,
+            #              "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
+            #              (x + 10, y + 20))
+            # text.putText(depthFrameColor,
+            #              "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
+            #              (x + 10, y + 35))
+            # text.putText(depthFrameColor,
+            #              "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
+            #              (x + 10, y + 50))
+            # cv2.line(depthFrameColor, (int(topLeft.x), int(topLeft.y)), (int(topRight.x), int(topRight.y)), color, 2, cv2.LINE_AA,
+            #          0)
+            # cv2.line(depthFrameColor, (int(topRight.x), int(topRight.y)), (int(bottomRight.x), int(bottomRight.y)), color, 2,
+            #          cv2.LINE_AA, 0)
+            # cv2.line(depthFrameColor, (int(bottomRight.x), int(bottomRight.y)), (int(bottomLeft.x), int(bottomLeft.y)), color, 2,
+            #          cv2.LINE_AA, 0)
+            # cv2.line(depthFrameColor, (int(bottomLeft.x), int(bottomLeft.y)), (int(topLeft.x), int(topLeft.y)), color, 2,
+            #          cv2.LINE_AA, 0)
+            # cv2.putText(depthFrameColor, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
+            #
+            # # For apriltag
+            # text.rectangle(frame, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
+            # text.putText(frame,
+            #              "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
+            #              (x + 10, y + 20))
+            # text.putText(frame,
+            #              "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
+            #              (x + 10, y + 35))
+            # text.putText(frame,
+            #              "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
+            #              (x + 10, y + 50))
+            #
+            # cv2.putText(frame, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255,255,255))
+            #
+            # cv2.imshow("mono", frame)
+            #
+            # # Show the frame
+            # cv2.imshow("depth", depthFrameColor)
+            #
+            #
 
         if cv2.waitKey(1) == ord('q'):
             break

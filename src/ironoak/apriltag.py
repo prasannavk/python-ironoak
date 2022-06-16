@@ -3,8 +3,6 @@
 import time
 import depthai as dai
 from calc import HostSpatialsCalc
-
-# from utility import *
 import numpy as np
 import math
 from pupil_apriltags import Detector
@@ -248,35 +246,6 @@ with dai.Device(pipeline) as device:
                 1,
                 cv2.LINE_AA,
             )
-            # text.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
-            # text.putText(
-            #     depthFrameColor,
-            #     "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
-            #     (x + 10, y + 20),
-            # )
-            # text.putText(
-            #     depthFrameColor,
-            #     "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
-            #     (x + 10, y + 35),
-            # )
-            # text.putText(
-            #     depthFrameColor,
-            #     "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
-            #     (x + 10, y + 50),
-            # )
-
-            # text.rectangle(grayframe, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
-            # text.putText(
-            #     grayframe, "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"), (x + 10, y + 20)
-            # )
-            # text.putText(
-            #     grayframe, "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"), (x + 10, y + 35)
-            # )
-            # text.putText(
-            #     grayframe, "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"), (x + 10, y + 50)
-            # )
-            #
-            # cv2.putText(grayframe, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), fontType, 0.4, (255, 255, 255))
 
         # Show the frame for apriltag
         cv2.imshow("mono", grayframe)

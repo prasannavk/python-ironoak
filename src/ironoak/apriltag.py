@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
-
+import time
 import depthai as dai
 from calc import HostSpatialsCalc
-from utility import *
+
+# from utility import *
 import numpy as np
 import math
 from pupil_apriltags import Detector
+import cv2
 
 # Create pipeline
 pipeline = dai.Pipeline()
@@ -90,8 +92,8 @@ with dai.Device(pipeline) as device:
     depthQueue = device.getOutputQueue(name="depth")
     dispQ = device.getOutputQueue(name="disp")
 
-    text = TextHelper()
-    hostSpatials = HostSpatialsCalc(device)
+    # text = TextHelper()
+    hostSpatials = HostSpatialsCalc(device)  # Calls the class on calc.py to perform depth calculations
     roi_radius = 10
     hostSpatials.setDeltaRoi(roi_radius)
 
@@ -134,9 +136,12 @@ with dai.Device(pipeline) as device:
 
             grayframe = frame
 
+            fontType = cv2.FONT_HERSHEY_TRIPLEX
+
             center = (int((topLeft[0] + bottomRight[0]) / 2), int((topLeft[1] + bottomRight[1]) / 2))
             cv2.circle(grayframe, center, 5, (0, 0, 255), -1)
 
+            # This draws lines around the apriltag in the apriltag frame
             cv2.line(grayframe, (int(topLeft[0]), int(topLeft[1])), (int(topRight[0]), int(topRight[1])), color, 2, cv2.LINE_AA, 0)
             cv2.line(grayframe, (int(topRight[0]), int(topRight[1])), (int(bottomRight[0]), int(bottomRight[1])), color, 2, cv2.LINE_AA, 0)
             cv2.line(
@@ -145,31 +150,51 @@ with dai.Device(pipeline) as device:
             cv2.line(grayframe, (int(bottomLeft[0]), int(bottomLeft[1])), (int(topLeft[0]), int(topLeft[1])), color, 2, cv2.LINE_AA, 0)
 
             idStr = "ID: " + str(aprilTag.id)
-            cv2.putText(frame, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
+            cv2.putText(grayframe, idStr, center, fontType, 0.5, color)
 
-            # DEAL WITH DEPTH
+            # grabs the x and y points for the center
             x = center[0]
             y = center[1]
 
             spatials, centroid = hostSpatials.calc_spatials(depthFrame, center)  # centroid == x/y in our case
-            cv2.circle(depthFrameColor, center, 5, (0, 0, 255), -1)
 
-            text.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
-            text.putText(
-                depthFrameColor,
+            # This draws on the apriltag frame the depth calculations and frames the roi
+            cv2.rectangle(grayframe, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius), (255, 255, 255), 1)
+            cv2.putText(
+                grayframe,
                 "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
                 (x + 10, y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
             )
-            text.putText(
-                depthFrameColor,
+
+            cv2.putText(
+                grayframe,
                 "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
                 (x + 10, y + 35),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
             )
-            text.putText(
-                depthFrameColor,
+
+            cv2.putText(
+                grayframe,
                 "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
                 (x + 10, y + 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
             )
+
+            # This draws the box around the apriltag in the disparity map
+            cv2.circle(depthFrameColor, center, 5, (0, 0, 255), -1)
             cv2.line(depthFrameColor, (int(topLeft[0]), int(topLeft[1])), (int(topRight[0]), int(topRight[1])), color, 2, cv2.LINE_AA, 0)
             cv2.line(
                 depthFrameColor, (int(topRight[0]), int(topRight[1])), (int(bottomRight[0]), int(bottomRight[1])), color, 2, cv2.LINE_AA, 0
@@ -187,25 +212,76 @@ with dai.Device(pipeline) as device:
                 depthFrameColor, (int(bottomLeft[0]), int(bottomLeft[1])), (int(topLeft[0]), int(topLeft[1])), color, 2, cv2.LINE_AA, 0
             )
 
-            cv2.putText(depthFrameColor, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
+            cv2.putText(depthFrameColor, idStr, center, fontType, 0.5, color)
 
-            # For apriltag
-            text.rectangle(grayframe, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
-            text.putText(
-                frame, "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"), (x + 10, y + 20)
-            )
-            text.putText(
-                grayframe, "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"), (x + 10, y + 35)
-            )
-            text.putText(
-                grayframe, "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"), (x + 10, y + 50)
+            # This draws on the disparity map the depth calculations in roi
+            cv2.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius), (255, 255, 255), 1)
+            cv2.putText(
+                depthFrameColor,
+                "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
+                (x + 10, y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
             )
 
-            cv2.putText(grayframe, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255))
+            cv2.putText(
+                depthFrameColor,
+                "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
+                (x + 10, y + 35),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
 
+            cv2.putText(
+                depthFrameColor,
+                "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
+                (x + 10, y + 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            # text.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
+            # text.putText(
+            #     depthFrameColor,
+            #     "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
+            #     (x + 10, y + 20),
+            # )
+            # text.putText(
+            #     depthFrameColor,
+            #     "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
+            #     (x + 10, y + 35),
+            # )
+            # text.putText(
+            #     depthFrameColor,
+            #     "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
+            #     (x + 10, y + 50),
+            # )
+
+            # text.rectangle(grayframe, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
+            # text.putText(
+            #     grayframe, "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"), (x + 10, y + 20)
+            # )
+            # text.putText(
+            #     grayframe, "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"), (x + 10, y + 35)
+            # )
+            # text.putText(
+            #     grayframe, "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"), (x + 10, y + 50)
+            # )
+            #
+            # cv2.putText(grayframe, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), fontType, 0.4, (255, 255, 255))
+
+        # Show the frame for apriltag
         cv2.imshow("mono", grayframe)
 
-        # Show the frame
+        # Show the frame for disparity
         cv2.imshow("depth", depthFrameColor)
 
         if cv2.waitKey(1) == ord('q'):

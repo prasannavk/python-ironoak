@@ -52,19 +52,19 @@ with dai.Device(pipeline) as device:
     print("Use WASD keys to move ROI.\nUse 'r' and 'f' to change ROI size.")
 
     while True:
-        depthFrame = depthQueue.get().getFrame() # numpy image of x,y,Z
+        depthFrame = depthQueue.get().getFrame()  # numpy image of x,y,Z
         # Calculate spatial coordiantes from depth frame
-        spatials, centroid = hostSpatials.calc_spatials(depthFrame, (x,y)) # centroid == x/y in our case
+        spatials, centroid = hostSpatials.calc_spatials(depthFrame, (x, y))  # centroid == x/y in our case
 
         # Get disparity frame for nicer depth visualization
         disp = dispQ.get().getFrame()
         disp = (disp * (255 / stereo.initialConfig.getMaxDisparity())).astype(np.uint8)
         disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
 
-        text.rectangle(disp, (x-delta, y-delta), (x+delta, y+delta))
-        text.putText(disp, "X: " + ("{:.1f}m".format(spatials['x']/1000) if not math.isnan(spatials['x']) else "--"), (x + 10, y + 20))
-        text.putText(disp, "Y: " + ("{:.1f}m".format(spatials['y']/1000) if not math.isnan(spatials['y']) else "--"), (x + 10, y + 35))
-        text.putText(disp, "Z: " + ("{:.1f}m".format(spatials['z']/1000) if not math.isnan(spatials['z']) else "--"), (x + 10, y + 50))
+        text.rectangle(disp, (x - delta, y - delta), (x + delta, y + delta))
+        text.putText(disp, "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"), (x + 10, y + 20))
+        text.putText(disp, "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"), (x + 10, y + 35))
+        text.putText(disp, "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"), (x + 10, y + 50))
 
         # Show the frame
         cv2.imshow("depth", disp)
@@ -80,11 +80,11 @@ with dai.Device(pipeline) as device:
             y += step
         elif key == ord('d'):
             x += step
-        elif key == ord('r'): # Increase Delta
+        elif key == ord('r'):  # Increase Delta
             if delta < 50:
                 delta += 1
                 hostSpatials.setDeltaRoi(delta)
-        elif key == ord('f'): # Decrease Delta
+        elif key == ord('f'):  # Decrease Delta
             if 3 < delta:
                 delta -= 1
                 hostSpatials.setDeltaRoi(delta)

@@ -80,7 +80,7 @@ with dai.Device(pipeline) as device:
     depthQueue = device.getOutputQueue(name="depth")
     dispQ = device.getOutputQueue(name="disp")
     text = TextHelper()
-    hostSpatials = HostSpatialsCalc(device) # Conversion to depth functions class
+    hostSpatials = HostSpatialsCalc(device)  # Conversion to depth functions class
     roi_radius = 10
     hostSpatials.setDeltaRoi(roi_radius)
 
@@ -90,7 +90,7 @@ with dai.Device(pipeline) as device:
     counter = 0
     fps = 0
 
-    while (True):
+    while True:
         inFrame = manipQueue.get()
 
         # from main_calc
@@ -124,14 +124,10 @@ with dai.Device(pipeline) as device:
             center = (int((topLeft.x + bottomRight.x) / 2), int((topLeft.y + bottomRight.y) / 2))
             cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
-            cv2.line(frame, (int(topLeft.x), int(topLeft.y)), (int(topRight.x), int(topRight.y)), color, 2,
-                     cv2.LINE_AA, 0)
-            cv2.line(frame, (int(topRight.x), int(topRight.y)), (int(bottomRight.x), int(bottomRight.y)), color, 2,
-                     cv2.LINE_AA, 0)
-            cv2.line(frame, (int(bottomRight.x), int(bottomRight.y)), (int(bottomLeft.x), int(bottomLeft.y)), color,
-                     2, cv2.LINE_AA, 0)
-            cv2.line(frame, (int(bottomLeft.x), int(bottomLeft.y)), (int(topLeft.x), int(topLeft.y)), color, 2,
-                     cv2.LINE_AA, 0)
+            cv2.line(frame, (int(topLeft.x), int(topLeft.y)), (int(topRight.x), int(topRight.y)), color, 2, cv2.LINE_AA, 0)
+            cv2.line(frame, (int(topRight.x), int(topRight.y)), (int(bottomRight.x), int(bottomRight.y)), color, 2, cv2.LINE_AA, 0)
+            cv2.line(frame, (int(bottomRight.x), int(bottomRight.y)), (int(bottomLeft.x), int(bottomLeft.y)), color, 2, cv2.LINE_AA, 0)
+            cv2.line(frame, (int(bottomLeft.x), int(bottomLeft.y)), (int(topLeft.x), int(topLeft.y)), color, 2, cv2.LINE_AA, 0)
 
             idStr = "ID: " + str(aprilTag.id)
             cv2.putText(frame, idStr, center, cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
@@ -143,31 +139,35 @@ with dai.Device(pipeline) as device:
             cv2.circle(depthFrameColor, center, 5, (0, 0, 255), -1)
 
             text.rectangle(depthFrameColor, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
-            text.putText(depthFrameColor,
-                         "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
-                         (x + 10, y + 20))
-            text.putText(depthFrameColor,
-                         "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
-                         (x + 10, y + 35))
-            text.putText(depthFrameColor,
-                         "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
-                         (x + 10, y + 50))
+            text.putText(
+                depthFrameColor,
+                "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
+                (x + 10, y + 20),
+            )
+            text.putText(
+                depthFrameColor,
+                "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
+                (x + 10, y + 35),
+            )
+            text.putText(
+                depthFrameColor,
+                "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
+                (x + 10, y + 50),
+            )
 
             # For apriltag
             text.rectangle(frame, (x - roi_radius, y - roi_radius), (x + roi_radius, y + roi_radius))
-            text.putText(frame,
-                         "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"),
-                         (x + 10, y + 20))
-            text.putText(frame,
-                         "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"),
-                         (x + 10, y + 35))
-            text.putText(frame,
-                         "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"),
-                         (x + 10, y + 50))
+            text.putText(
+                frame, "X: " + ("{:.1f}m".format(spatials['x'] / 1000) if not math.isnan(spatials['x']) else "--"), (x + 10, y + 20)
+            )
+            text.putText(
+                frame, "Y: " + ("{:.1f}m".format(spatials['y'] / 1000) if not math.isnan(spatials['y']) else "--"), (x + 10, y + 35)
+            )
+            text.putText(
+                frame, "Z: " + ("{:.1f}m".format(spatials['z'] / 1000) if not math.isnan(spatials['z']) else "--"), (x + 10, y + 50)
+            )
 
-
-        cv2.putText(frame, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4,
-                    (255, 255, 255))
+        cv2.putText(frame, "Fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255))
 
         cv2.imshow("April tag frame", frame)
 
@@ -176,4 +176,3 @@ with dai.Device(pipeline) as device:
 
         if cv2.waitKey(1) == ord('q'):
             break
-

@@ -49,7 +49,7 @@ monoLeft.out.link(stereo.left)
 monoRight.out.link(stereo.right)
 
 xoutDepth = pipeline.create(dai.node.XLinkOut)
-xoutDepth.setStreamName("depth") # Do you use both of these evaluate?
+xoutDepth.setStreamName("depth")  # Do you use both of these evaluate?
 stereo.depth.link(xoutDepth.input)
 
 xoutDepth = pipeline.create(dai.node.XLinkOut)  # this seems repetative you can prob delete

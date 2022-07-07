@@ -3,7 +3,6 @@ import time
 import cv2
 
 
-
 class TextHelper:
     def __init__(self) -> None:
         self.bg_color = (0, 0, 0)

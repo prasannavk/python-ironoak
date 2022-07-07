@@ -41,7 +41,7 @@ monoRight.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
 monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 
 stereo.initialConfig.setConfidenceThreshold(255)
-stereo.setLeftRightCheck(False) # possibly change this to False
+stereo.setLeftRightCheck(False)  # possibly change this to False
 stereo.setSubpixel(False)
 
 # From main_calc Linking
@@ -52,7 +52,7 @@ xoutDepth = pipeline.create(dai.node.XLinkOut)
 xoutDepth.setStreamName("depth") # Do you use both of these evaluate?
 stereo.depth.link(xoutDepth.input)
 
-xoutDepth = pipeline.create(dai.node.XLinkOut) # this seems repetative you can prob delete
+xoutDepth = pipeline.create(dai.node.XLinkOut)  # this seems repetative you can prob delete
 xoutDepth.setStreamName("disp")
 stereo.disparity.link(xoutDepth.input)
 

@@ -1,6 +1,7 @@
 import math
-import numpy as np
+
 import depthai as dai
+import numpy as np
 
 
 class HostSpatialsCalc:

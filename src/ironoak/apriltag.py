@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
-import time
-import depthai as dai
-from calc import HostSpatialsCalc
-import numpy as np
 import math
-from pupil_apriltags import Detector
+import time
+
 import cv2
+import depthai as dai
+import numpy as np
+from calc import HostSpatialsCalc
+from pupil_apriltags import Detector
+
 
 # Create pipeline
 pipeline = dai.Pipeline()
@@ -39,7 +41,7 @@ monoRight.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
 monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 
 stereo.initialConfig.setConfidenceThreshold(255)
-stereo.setLeftRightCheck(True)
+stereo.setLeftRightCheck(False) # possibly change this to False
 stereo.setSubpixel(False)
 
 # From main_calc Linking
@@ -47,10 +49,10 @@ monoLeft.out.link(stereo.left)
 monoRight.out.link(stereo.right)
 
 xoutDepth = pipeline.create(dai.node.XLinkOut)
-xoutDepth.setStreamName("depth")
+xoutDepth.setStreamName("depth") # Do you use both of these evaluate?
 stereo.depth.link(xoutDepth.input)
 
-xoutDepth = pipeline.create(dai.node.XLinkOut)
+xoutDepth = pipeline.create(dai.node.XLinkOut) # this seems repetative you can prob delete
 xoutDepth.setStreamName("disp")
 stereo.disparity.link(xoutDepth.input)
 
@@ -90,7 +92,6 @@ with dai.Device(pipeline) as device:
     depthQueue = device.getOutputQueue(name="depth")
     dispQ = device.getOutputQueue(name="disp")
 
-    # text = TextHelper()
     hostSpatials = HostSpatialsCalc(device)  # Calls the class on calc.py to perform depth calculations
     roi_radius = 10
     hostSpatials.setDeltaRoi(roi_radius)
@@ -118,6 +119,7 @@ with dai.Device(pipeline) as device:
             fps = counter / (current_time - startTime)
             counter = 0
             startTime = current_time
+            print(fps)
 
         monoFrame = inFrame.getFrame()
         frame = cv2.cvtColor(monoFrame, cv2.COLOR_GRAY2BGR)

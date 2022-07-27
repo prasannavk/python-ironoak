@@ -26,3 +26,9 @@ Changelog
 * Added support for both live camera input and video input.
 * Added depth for live camera input.
 
+0.0.4 (2022-07-26)
+------------------
+
+* Used Streamlit to add a basic user interface with the ability to modify input source, video file, model file, and confidence threshold.
+* Included a video preview in the UI.
+

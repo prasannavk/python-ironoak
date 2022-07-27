@@ -6,9 +6,10 @@ import numpy as np
 import time
 import argparse
 import threading
+import streamlit as st
 
 class person_detector:
-    def __init__(self, videoPath, fullFrameTracking):
+    def configPs(self, inputSrc, videoPath, fullFrameTracking, modelPath, confThres):
         self.isDetected = False
 
         self.x1 = 0
@@ -18,23 +19,22 @@ class person_detector:
 
         self.depth = 0
 
+        self.inputSrc = inputSrc
         self.videoPath = videoPath
         self.fullFrameTracking = fullFrameTracking
+        self.nnPath = modelPath
+        self.confThres = confThres
 
-        if self.videoPath is None:
+        if inputSrc == "Camera":
             self.labelMap = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow",
             "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
-            self.nnPath = str((Path(__file__).parent / Path(
-                '../models/mobilenet-ssd_openvino_2021.4_5shave.blob')).resolve().absolute())
         else:
             self.labelMap = ["", "person"]
-            self.nnPath = str((Path(__file__).parent / Path(
-                '../models/person-detection-retail-0013_openvino_2021.4_7shave.blob')).resolve().absolute())
 
         # Create pipeline
         self.pipeline = dai.Pipeline()
 
-        if self.videoPath is None:
+        if inputSrc == "Camera":
             camRgb = self.pipeline.create(dai.node.ColorCamera)
             spatialDetectionNetwork = self.pipeline.create(dai.node.MobileNetSpatialDetectionNetwork)
             monoLeft = self.pipeline.create(dai.node.MonoCamera)
@@ -66,7 +66,7 @@ class person_detector:
             stereo.setOutputSize(monoLeft.getResolutionWidth(), monoLeft.getResolutionHeight())
 
             spatialDetectionNetwork.setBlobPath(self.nnPath)
-            spatialDetectionNetwork.setConfidenceThreshold(0.5)
+            spatialDetectionNetwork.setConfidenceThreshold(self.confThres)
             spatialDetectionNetwork.input.setBlocking(False)
             spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
             spatialDetectionNetwork.setDepthLowerThreshold(100)
@@ -128,7 +128,7 @@ class person_detector:
 
             # setting node configs
             detectionNetwork.setBlobPath(self.nnPath)
-            detectionNetwork.setConfidenceThreshold(0.5)
+            detectionNetwork.setConfidenceThreshold(self.confThres)
             detectionNetwork.input.setBlocking(True)
 
             objectTracker.inputTrackerFrame.setBlocking(True)
@@ -163,7 +163,7 @@ class person_detector:
     def detectPerson(self):
         with dai.Device(self.pipeline) as device:
 
-            if self.fullFrameTracking is None:
+            if self.inputSrc == "Video":
                 qIn = device.getInputQueue(name="inFrame")
                 trackerFrameQ = device.getOutputQueue(name="trackerFrame", maxSize=4)
                 tracklets = device.getOutputQueue(name="tracklets", maxSize=4)

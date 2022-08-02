@@ -8,6 +8,47 @@ import depthai as dai
 import numpy as np
 from cv2 import aruco  # dont know why this is red underlined doesnet seem to have a problem
 
+
+def TransformBetweenMarkers(tvec_m, tvec_n, rvec_m, rvec_n):
+    tvec_m = np.transpose(tvec_m)  # tvec of 'm' marker
+    tvec_n = np.transpose(tvec_n)  # tvec of 'n' marker
+    dtvec = tvec_m - tvec_n  # vector from 'm' to 'n' marker in the camera's coordinate system
+
+    # get the markers' rotation matrices respectively
+    R_m = cv2.Rodrigues(rvec_m)[0]
+    R_n = cv2.Rodrigues(rvec_n)[0]
+
+    tvec_mm = (-R_m.T).dot(tvec_m)  # np.matmul(-R_m.T, tvec_m) #  camera pose in 'm' marker's coordinate system # one to left
+    tvec_nn = (-R_n.T).dot(tvec_n)  # np.matmul(-R_n.T, tvec_n) # camera pose in 'n' marker's coordinate system
+
+    # translational difference between markers in 'm' marker's system,
+    # basically the origin of 'n'
+    dtvec_m = (-R_m.T).dot(dtvec)  # np.matmul(-R_m.T, dtvec) #  this is the inverse of the rotationb matrix becauethe transpose is the inverse
+
+    # this gets me the same as tvec_mm,
+    # but this only works, if 'm' marker is seen
+    # tvec_nm = dtvec_m + np.matmul(-R_m.T, tvec_n)
+
+    # something with the rvec difference must give the transformation(???)
+    # drvec = rvec_m - rvec_n
+    # drvec_m = np.transpose((R_m.T).dot(np.transpose(drvec)))  # np.transpose(np.matmul(R_m.T, np.transpose(drvec)))  # transformed to 'm' marker
+    dR_m = R_m.dot(R_n.T)  # cv2.Rodrigues(drvec_m)[0]
+
+    # I want to transform tvec_nn with a single matrix,
+    # so it would be interpreted in 'm' marker's system
+    tvec_nm = dtvec_m + (dR_m.T).dot(tvec_nn)  # dtvec_m + np.matmul(dR_m.T, tvec_nn) #
+
+    # new
+    # cv2.circle(imaxis, (tvec_nm[0], tvec_nm[1]), 5, (0, 0, 255), -1)
+
+    # new:
+    m = False
+    if (tvec_nm == tvec_mm).any():
+        m = True
+    print("tvec_mm:\n{}\ntvec_nm:\n{}\n{}".format(tvec_mm, tvec_nm, m))
+    return
+
+
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
 # ap.add_argument("-o", "--output", required=True,
@@ -205,18 +246,6 @@ with dai.Device(pipeline) as device:
             cv2.putText(depthFrameColor, f"Y: {int(depthData.spatialCoordinates.y)} mm", (xmin + 10, ymin + 35), fontType, 0.5, color)
             cv2.putText(depthFrameColor, f"Z: {int(depthData.spatialCoordinates.z)} mm", (xmin + 10, ymin + 50), fontType, 0.5, color)
 
-            # Experiment:
-            color_n = (255, 54, 51)
-            cv2.rectangle(depthFrameColor, (xmin, int(ymin + 67.04)), (xmax, int(ymax + 67.04)), color_n, cv2.FONT_HERSHEY_SCRIPT_SIMPLEX)
-            cv2.putText(depthFrameColor, f"X: {int(depthData.spatialCoordinates.x)} mm", (xmin + 10, int(ymin + 87.04)),
-                        fontType, 0.5, color_n)
-            cv2.putText(depthFrameColor, f"Y: {int(depthData.spatialCoordinates.y)} mm", (xmin + 10, int(ymin + 102.04)),
-                        fontType, 0.5, color_n)
-            cv2.putText(depthFrameColor, f"Z: {int(depthData.spatialCoordinates.z)} mm", (xmin + 10, int(ymin + 117.04)),
-                        fontType, 0.5, color_n)
-            # center = (int((topLeft[0] + bottomRight[0]) / 2), int((topLeft[1] + bottomRight[1]) / 2))
-            cv2.circle(depthFrameColor, (int(depthData.spatialCoordinates.x), int(depthData.spatialCoordinates.y + 67.04)), 5, color_n, -1)
-
         cv2.imshow("depth", depthFrameColor)
 
         key = cv2.waitKey(1)
@@ -225,8 +254,8 @@ with dai.Device(pipeline) as device:
         if frameRight is not None:
             # cv2.imshow("right", frameRight)
             # ArUco processing
-            corners, ids, rejectedImgPoints = aruco.detectMarkers(frameRight, aruco_dict, parameters=parameters)
-            frame_markers = aruco.drawDetectedMarkers(frameRight.copy(), corners, ids)
+            corners, ids, rejectedImgPoints = aruco.detectMarkers(frameRight, aruco_dict, parameters=parameters)  # detects marker and gets cornors
+            frame_markers = aruco.drawDetectedMarkers(frameRight.copy(), corners, ids)  # draws the maker in the camera space but details are obscured to the user
             for corner in corners:
                 x_mid = (corner[0][1][0] + corner[0][3][0]) / 2
                 y_mid = (corner[0][1][1] + corner[0][3][1]) / 2
@@ -235,36 +264,49 @@ with dai.Device(pipeline) as device:
                 bottomRight.x = (x_mid + 15) / 640
                 bottomRight.y = (y_mid + 15) / 400
 
-            rvecs, tvecs, trash = aruco.estimatePoseSingleMarkers(corners, size_of_marker, mtx, dist)
+                cv2.circle(imaxis, (int(x_mid), int(y_mid)), 5, (0, 0, 255), -1)
+
+            rvecs, tvecs, trash = aruco.estimatePoseSingleMarkers(corners, size_of_marker, mtx, dist)  # how you get rotation and translation vectors
             imaxis = aruco.drawDetectedMarkers(frameRight.copy(), corners, ids)
             imaxis = cv2.merge((imaxis, imaxis, imaxis))  # Just turn to color for easier display visability
             # print("tvecs.shape = {} rvecs.shape(squeeze) = {}\n{}".format(np.shape(tvecs), /n
             # np.shape(np.squeeze(tvecs)), tvecs))
+            # new:
+            # x = np.matrix([[0, 0, 0], [length_of_axis, 0, 0], [0, length_of_axis, 0], [0, 0, length_of_axis]])
+            # x_prime, J = cv2.projectPoints(x, rvecs, tvecs, mtx, dist)
+
+                # objective: tvec_mm == tvec_nm
+
+
             if tvecs is not None:
-                for i in range(len(tvecs)):
-                    imaxis = cv2.drawFrameAxes(imaxis, mtx, dist, rvecs[i], tvecs[i], length_of_axis)
-                    rvec = np.squeeze(rvecs[0], axis=None)
-                    tvec = np.squeeze(tvecs[0], axis=None)
-                    tvec = np.expand_dims(tvec, axis=1)
-                    rvec_matrix = cv2.Rodrigues(rvec)[0]
-                    # print("rodriques\n",rvec_matrix)
-                    # print("tvec:\n",tvec)
-                    print("rvec:\n{}\ntvec:\n{}. . .".format(rvec_matrix, tvec))
-                    #rvec_matrix = np.identity(3)
-                    proj_matrix = np.hstack((rvec_matrix, tvec))
+                if len(tvecs) > 1:
+                    for i in range(len(tvecs)):
+                        print(len(tvecs))
+                        if i == 0:
+                            TransformBetweenMarkers(tvecs[i], tvecs[i+1], rvecs[i], rvecs[i+1])
 
-                    proj_matrix_inv = np.hstack((np.linalg.inv(rvec_matrix),-tvec))
-                    world_point = np.array([depthData.spatialCoordinates.x,depthData.spatialCoordinates.y,depthData.spatialCoordinates.z,1000.0])/1000.0
-                    #world_pointT = np.transpose(world_point)
-                    proj_wpinv = np.matmul(proj_matrix_inv,world_point)
-                    proj_wp = np.matmul(proj_matrix,world_point)
-                    print("PT from:\n{}\nPT to inv:\n{}\nPt to orig:\n{}\n______".format(world_point,proj_wpinv,proj_wp))
+                        imaxis = cv2.drawFrameAxes(imaxis, mtx, dist, rvecs[i], tvecs[i], length_of_axis)
 
-                    # print("proj matrix\n",proj_matrix)
-                    euler_angles = cv2.decomposeProjectionMatrix(proj_matrix)[6]
-                    cv2.putText(imaxis, 'X: ' + str(int(euler_angles[0])), (10, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255))
-                    cv2.putText(imaxis, 'Y: ' + str(int(euler_angles[1])), (115, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0))
-                    cv2.putText(imaxis, 'Z: ' + str(int(euler_angles[2])), (200, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 0, 0))
+                        # cv2.circle(imaxis, (165, 171), 5, (0, 0, 255), -1)
+                #         rvec = np.squeeze(rvecs[0], axis=None)
+                #                 #         tvec = np.squeeze(tvecs[0], axis=None)
+                #         tvec = np.expand_dims(tvec, axis=1)
+                #         rvec_matrix = cv2.Rodrigues(rvec)[0]
+                #
+                #         proj_matrix = np.hstack((rvec_matrix, tvec))
+                #
+                #         # proj_matrix_inv = np.hstack((np.linalg.inv(rvec_matrix),-tvec))
+                #         # world_point = np.array([depthData.spatialCoordinates.x,depthData.spatialCoordinates.y,depthData.spatialCoordinates.z,1000.0])/1000.0
+                #         # #world_pointT = np.transpose(world_point)
+                #         # proj_wpinv = np.matmul(proj_matrix_inv,world_point)
+                #         # proj_wp = np.matmul(proj_matrix,world_point)
+                #         # print("PT from:\n{}\nPT to inv:\n{}\nPt to orig:\n{}\n______".format(world_point,proj_wpinv,proj_wp))
+                #
+                #         # print("proj matrix\n",proj_matrix)
+                #         euler_angles = cv2.decomposeProjectionMatrix(proj_matrix)[6]
+                #         cv2.putText(imaxis, 'X: ' + str(int(euler_angles[0])), (10, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255))
+                #         cv2.putText(imaxis, 'Y: ' + str(int(euler_angles[1])), (115, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0))
+                #         cv2.putText(imaxis, 'Z: ' + str(int(euler_angles[2])), (200, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 0, 0))
             cv2.imshow('Aruco', imaxis)
 
             config.roi = dai.Rect(topLeft, bottomRight)

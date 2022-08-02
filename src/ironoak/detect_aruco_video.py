@@ -6,7 +6,7 @@ import argparse
 import cv2
 import depthai as dai
 import numpy as np
-from cv2 import aruco  # dont know why this is red underlined doesnet seem to have a problem GB
+from cv2 import aruco  # dont know why this is red underlined doesnet seem to have a problem G B
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()

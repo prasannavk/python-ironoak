@@ -9,6 +9,7 @@ import numpy as np
 from calc import HostSpatialsCalc
 from pupil_apriltags import Detector
 
+
 # Create pipeline
 pipeline = dai.Pipeline()
 

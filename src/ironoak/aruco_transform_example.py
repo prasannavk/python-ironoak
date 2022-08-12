@@ -142,6 +142,7 @@ xinSpatialCalcConfig.out.link(spatialLocationCalculator.inputConfig)
 
 # Pipeline defined, now the device is assigned and pipeline is started
 # device = dai.Device(pipeline) # clean up code adn maek it more usable
+foo = 0
 with dai.Device(pipeline) as device:
 
     # new: for calib data:
@@ -152,12 +153,12 @@ with dai.Device(pipeline) as device:
     calibData = device.readCalibration()
     calibData.eepromToJsonFile(calibFile)
 
-    M_right = np.array(calibData.getCameraIntrinsics(dai.CameraBoardSocket.RIGHT, 1280, 720))
+    #M_right = np.array(calibData.getCameraIntrinsics(dai.CameraBoardSocket.RIGHT, 1280, 720))
     # print("RIGHT Camera resized intrinsics...")
     # print(M_right)
     mtx = np.array(calibData.getCameraIntrinsics(dai.CameraBoardSocket.RIGHT, 1280, 720))
 
-    D_right = np.array(calibData.getDistortionCoefficients(dai.CameraBoardSocket.RIGHT))
+    # D_right = np.array(calibData.getDistortionCoefficients(dai.CameraBoardSocket.RIGHT))
     # print("RIGHT Distortion Coefficients...")
     # [print(name + ": " + value) for (name, value) in
     #  zip(["k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6", "s1", "s2", "s3", "s4", "τx", "τy"],
@@ -285,6 +286,7 @@ with dai.Device(pipeline) as device:
 
 
 
+
             # tvecT = np.transpose(tvecs[0])
             # R = cv2.Rodrigues(rvecs[0])[0]
             # p = np.array([[2.], [0.], [0.]])
@@ -302,30 +304,61 @@ with dai.Device(pipeline) as device:
 
             topLeft, bottomRight = [], []
             ones = np.ones(3)
-            if tvecs is not None:
-                for i in range(len(tvecs)):
+
+            if tvecs is not None: #tvecs is not None:
+                IDs = np.squeeze(ids)
+                for I,i in zip(IDs, range(len(tvecs))):
                     if i == 0:
+                        i2 = 0
+                        i4 = 1
+                        if I == 4:
+                            i2 = 1
+                            i4 = 0
                         #TransformBetweenMarkers(tvecs[i], tvecs[i+1], rvecs[i], rvecs[i+1])
-                        Rv = np.squeeze(rvecs[i],axis=None)
-                        R,_ = cv2.Rodrigues(Rv)
-                        t = np.squeeze(tvecs[i],axis=None)
-                        p = np.array([-length_of_axis*4,0.,0.])
-                        P_m4x = R.dot(p) + t
-                        V2 = np.squeeze(tvecs[1])
-                        P_V2 = P_m4x - V2
-                        print("P_m4x:{}; V2:{}, P_m4x-V2:{}".format(P_m4x,V2,P_V2))
-                        v2 = R.T.dot(V2 - t)
-                        p_v2 = p - v2
-                        print(" T: v2:{}, p:{}, v2-p:{}".format(v2,p,p_v2))
-                        DV = np.abs(P_V2).dot(ones)
-                        dv = np.abs(p_v2).dot(ones)
+                        # CONVENTION
+                        # non-caps == Camera coordinate system, CAPS == world coordinates
+                        # ID 2 is aruco ID 2 closer to center of right camera
+                        # ID 4 is is acruco to the left of acruco ID 2
+                        # V  vector out to the world point (ID 2 or 4)
+                        # v result point projected back to the camera
+                        # p point I made in camera coordinates
+                        # ID2
+                        Rv2 = np.squeeze(rvecs[i2], axis=None)
+                        R2, _ = cv2.Rodrigues(Rv2)
+                        t2 = np.squeeze(tvecs[i2], axis=None)
+                        V2 = t2
+
+                        # ID4
+                        Rv4 = np.squeeze(rvecs[i4], axis=None)
+                        R4, _ = cv2.Rodrigues(Rv4)
+                        t4 = np.squeeze(tvecs[i4], axis=None)
+                        V4 = t4
+
+                        p4 = np.array([-length_of_axis * 4, 0., 0.])
+                        P4 = R2.dot(p4) + t2  # p4 is point I made sitting in center of ID 4 on the camera, P4 is it's projection
+                        P4_V2 = P4 - V4
+                        print("P4:{}; V4:{}, P4-V2:{}".format(P4, V4, P4_V2))
+
+                        v4 = R2.T.dot(V4 - t2)  #What is camera point V_id4 in id2 coordinate system? It is (-4*Xside, 0,0)
+                        p4_v4 = p4 - v4
+                        print(" T: v4:{}, p4:{}, p4-v4:{}".format(v4, p4, p4_v4))
+
+                        # V42 = V4 - V2  # vector from acuco board 2 center to acruco board 4 center
+                        # PV42_2 = R2.dot(V42) + t2
+                        # PV42_4 = R4.dot(PV42_2) #This is zero?
+                        # R42 = R4.dot(R2.T) # Projection of id2 to id4
+                        # p42_4 = R42.dot(V42)
+                        # print("p42_4: {}".format(p42_4))
+                        DV = np.abs(P4_V2).dot(ones)
+                        dv = np.abs(p4_v4).dot(ones)
+                        foo += 1
+                        if not foo%10:
+                            foo += 1
                         if dv < 0.018 and DV < 0.018:
                             print("GOOD! dv:{}, DV:{}\n_________".format(dv,DV))
                         else:
                             print("***BAD! dv:{}, DV:{}\nxxxxxxxx".format(dv,DV))
                         V1 = np.squeeze(tvecs[0])
-                        V2_V1 = V2 - V1
-                        ppp = p
 
 
 
@@ -333,7 +366,6 @@ with dai.Device(pipeline) as device:
                     imaxis = cv2.drawFrameAxes(imaxis, mtx, distortion, rvecs[i], tvecs[i], length_of_axis)
 
                     corner = corners[i]
-                    ID = ids[i]
                     x_mid = (corner[0][1][0] + corner[0][3][0] + corner[0][0][0] + corner[0][2][0]) / 4
                     y_mid = (corner[0][1][1] + corner[0][3][1] + corner[0][0][1] + corner[0][2][1]) / 4
                     topLeft.append(dai.Point2f((x_mid - 15) / mono_width, (y_mid - 15) / mono_height))

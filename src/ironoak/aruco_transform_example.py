@@ -9,13 +9,41 @@ import numpy as np
 from cv2 import aruco  # dont know why this is red underlined doesnet seem to have a problem
 
 
-def ProjectPointRT(R,t,p):
-    P = R@p + t
-    return P
+def mycomposeRt(R,t):
+    '''
+    Compose 3x3 R and 3x1 t into a 4x4 transfrom T
+    Args:
+        R (): 3x3 numpy array
+        t (): 3x1 numpy array
+    Returns:
+        4x4 T(R,t)
+    '''
+    T = np.zeros((4, 4), dtype=float)
+    T[0:3,0:3] = R
+    T[0:3,3] = t
+    T[3,3] =  1.0
+    return T
 
-def ProjectPointRTvecs(rvec,tvec,p):
-    R = cv2.Rodrigues(rvec)[0]
-    t = np.transpose(tvec)
+def myinvertT(T):
+    '''
+    Invert 4x4 numpy transform matrix T
+    Args:
+        T (): 4x4 float numpy Transform matrix
+    Returns: T^-1
+    '''
+    return np.linalg.inv(T)
+
+def my3to4pt(p):
+    '''
+    Convert a 3x1 numpy 3d point to homogeneous 4x1 vector
+    Args:
+        p (): 3x1 numpy 3D point
+    Returns: p(x,y,z) -> p(x,y,z,1)
+    '''
+    four1s = np.ones(4, dtype=float)
+    four1s[0:3] = p
+    return four1s
+
 
 # tvec_T = np.transpose(tvec)
 # R_m = cv2.Rodrigues(rvec_m)[0]
@@ -316,49 +344,49 @@ with dai.Device(pipeline) as device:
                             i4 = 0
                         #TransformBetweenMarkers(tvecs[i], tvecs[i+1], rvecs[i], rvecs[i+1])
                         # CONVENTION
+                        # Operating on Calibrated, rectified images
                         # non-caps == Camera coordinate system, CAPS == world coordinates
+                        # T _fromframe_toproj
                         # ID 2 is aruco ID 2 closer to center of right camera
                         # ID 4 is is acruco to the left of acruco ID 2
-                        # V  vector out to the world point (ID 2 or 4)
-                        # v result point projected back to the camera
-                        # p point I made in camera coordinates
+                        # P  World point (ID 2 or 4)
+                        # p result point projected back to the camera frame
+                        # _p should be
                         # ID2
-                        Rv2 = np.squeeze(rvecs[i2], axis=None)
-                        R2, _ = cv2.Rodrigues(Rv2)
+                        Rp2 = np.squeeze(rvecs[i2], axis=None)
+                        R2, _ = cv2.Rodrigues(Rp2)
                         t2 = np.squeeze(tvecs[i2], axis=None)
-                        V2 = t2
+                        P_0id2 = my3to4pt(t2)
+                        T_cam_id2 = mycomposeRt(R2,t2)
+                        T_id2_cam = myinvertT(T_cam_id2)  #invert this
 
                         # ID4
-                        Rv4 = np.squeeze(rvecs[i4], axis=None)
-                        R4, _ = cv2.Rodrigues(Rv4)
+                        Rp4 = np.squeeze(rvecs[i4], axis=None)
+                        R4, _ = cv2.Rodrigues(Rp4)
                         t4 = np.squeeze(tvecs[i4], axis=None)
-                        V4 = t4
+                        P_0id4 = my3to4pt(t4)
+                        T_cam_id4 = mycomposeRt(R4,t4)
+                        T_id4_cam = myinvertT(T_cam_id4)
 
-                        p4 = np.array([-length_of_axis * 4, 0., 0.])
-                        P4 = R2.dot(p4) + t2  # p4 is point I made sitting in center of ID 4 on the camera, P4 is it's projection
-                        P4_V2 = P4 - V4
-                        print("P4:{}; V4:{}, P4-V2:{}".format(P4, V4, P4_V2))
+                        # Other points
+                        p_m4x = np.array([-length_of_axis * 4, 0., 0.,1.]) # From the point of view of ID2, this is center of ID4
+                        p_000 = np.array([0,0,0,1], dtype = float)
+                        p_id2_cam = T_id2_cam.dot(p_000) #Camera from id2 frame
+                        p_id4_cam = T_id4_cam.dot(p_000) #Camera from id4 frame
 
-                        v4 = R2.T.dot(V4 - t2)  #What is camera point V_id4 in id2 coordinate system? It is (-4*Xside, 0,0)
-                        p4_v4 = p4 - v4
-                        print(" T: v4:{}, p4:{}, p4-v4:{}".format(v4, p4, p4_v4))
+                        _P_0id4 = T_cam_id2.dot(p_m4x) #Should be P_0id4 -- point in the center of ID4 in camera frame
+                        _p_m4x = T_id2_cam.dot(P_0id4) # Center of ID4_cam should be p_m4x from ID2 coordinate frame
+                        #frame id4_from id4
+                        T_id2_id4 =  T_id2_cam.dot(T_cam_id4)
+                        _p_id2_cam = T_id2_id4.dot(p_id4_cam)
 
-                        # V42 = V4 - V2  # vector from acuco board 2 center to acruco board 4 center
-                        # PV42_2 = R2.dot(V42) + t2
-                        # PV42_4 = R4.dot(PV42_2) #This is zero?
-                        # R42 = R4.dot(R2.T) # Projection of id2 to id4
-                        # p42_4 = R42.dot(V42)
-                        # print("p42_4: {}".format(p42_4))
-                        DV = np.abs(P4_V2).dot(ones)
-                        dv = np.abs(p4_v4).dot(ones)
-                        foo += 1
-                        if not foo%10:
-                            foo += 1
-                        if dv < 0.018 and DV < 0.018:
-                            print("GOOD! dv:{}, DV:{}\n_________".format(dv,DV))
-                        else:
-                            print("***BAD! dv:{}, DV:{}\nxxxxxxxx".format(dv,DV))
-                        V1 = np.squeeze(tvecs[0])
+                        print("=============")
+                        print("_P_0id4:{} vs P_0id4:{}".format(_P_0id4,P_0id4))
+                        print("_p_m4x:{} vs p_m4x:{}".format(_p_m4x,p_m4x))
+                        print("_p_id2_cam:{} vs p_id2_cam:{}".format(_p_id2_cam,p_id2_cam))
+
+
+
 
 
 

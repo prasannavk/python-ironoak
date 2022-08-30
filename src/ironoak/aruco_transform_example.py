@@ -45,48 +45,7 @@ def my3to4pt(p):
     return four1s
 
 
-# tvec_T = np.transpose(tvec)
-# R_m = cv2.Rodrigues(rvec_m)[0]
-# p = np.array([[2.],[0.],[0.]])
 
-def TransformBetweenMarkers(tvec_m, tvec_n, rvec_m, rvec_n):
-    tvec_m = np.transpose(tvec_m)  # tvec of 'm' marker
-    tvec_n = np.transpose(tvec_n)  # tvec of 'n' marker
-    dtvec = tvec_m - tvec_n  # vector from 'm' to 'n' marker in the camera's coordinate system
-
-    # get the markers' rotation matrices respectively
-    R_m = cv2.Rodrigues(rvec_m)[0]
-    R_n = cv2.Rodrigues(rvec_n)[0]
-
-    tvec_mm = (-R_m.T).dot(tvec_m)  # np.matmul(-R_m.T, tvec_m) #  camera pose in 'm' marker's coordinate system # one to left
-    tvec_nn = (-R_n.T).dot(tvec_n)  # np.matmul(-R_n.T, tvec_n) # camera pose in 'n' marker's coordinate system
-
-    # translational difference between markers in 'm' marker's system,
-    # basically the origin of 'n'
-    dtvec_m = (-R_m.T).dot(dtvec)  # np.matmul(-R_m.T, dtvec) #  this is the inverse of the rotationb matrix becauethe transpose is the inverse
-
-    # this gets me the same as tvec_mm,
-    # but this only works, if 'm' marker is seen
-    # tvec_nm = dtvec_m + np.matmul(-R_m.T, tvec_n)
-
-    # something with the rvec difference must give the transformation(???)
-    # drvec = rvec_m - rvec_n
-    # drvec_m = np.transpose((R_m.T).dot(np.transpose(drvec)))  # np.transpose(np.matmul(R_m.T, np.transpose(drvec)))  # transformed to 'm' marker
-    dR_m = R_m.dot(R_n.T)  # cv2.Rodrigues(drvec_m)[0]
-
-    # I want to transform tvec_nn with a single matrix,
-    # so it would be interpreted in 'm' marker's system
-    tvec_nm = dtvec_m + (dR_m.T).dot(tvec_nn)  # dtvec_m + np.matmul(dR_m.T, tvec_nn) #
-
-    # new
-    # cv2.circle(imaxis, (tvec_nm[0], tvec_nm[1]), 5, (0, 0, 255), -1)
-
-    # new:
-    m = False
-    if (tvec_nm == tvec_mm).any():
-        m = True
-    #print("tvec_mm:\n{}\ntvec_nm:\n{}\n{}".format(tvec_mm, tvec_nm, m))
-    return
 
 
 # construct the argument parser and parse the arguments
@@ -310,26 +269,6 @@ with dai.Device(pipeline) as device:
             imaxis = aruco.drawDetectedMarkers(frameRight.copy(), corners, ids)
             imaxis = cv2.merge((imaxis, imaxis, imaxis))  # Just turn to color for easier display visability
 
-
-
-
-
-
-            # tvecT = np.transpose(tvecs[0])
-            # R = cv2.Rodrigues(rvecs[0])[0]
-            # p = np.array([[2.], [0.], [0.]])
-            # P = ProjectPointRT(R, t, p)
-            # print("P is {}".format(P))
-
-
-            # print("tvecs.shape = {} rvecs.shape(squeeze) = {}\n{}".format(np.shape(tvecs), /n
-            # np.shape(np.squeeze(tvecs)), tvecs))
-            # new:
-            # x = np.matrix([[0, 0, 0], [length_of_axis, 0, 0], [0, length_of_axis, 0], [0, 0, length_of_axis]])
-            # x_prime, J = cv2.projectPoints(x, rvecs, tvecs, mtx, dist)
-
-                # objective: tvec_mm == tvec_nm
-
             topLeft, bottomRight = [], []
             ones = np.ones(3)
 
@@ -342,16 +281,7 @@ with dai.Device(pipeline) as device:
                         if I == 4:
                             i2 = 1
                             i4 = 0
-                        #TransformBetweenMarkers(tvecs[i], tvecs[i+1], rvecs[i], rvecs[i+1])
-                        # CONVENTION
-                        # Operating on Calibrated, rectified images
-                        # non-caps == Camera coordinate system, CAPS == world coordinates
-                        # T _fromframe_toproj
-                        # ID 2 is aruco ID 2 closer to center of right camera
-                        # ID 4 is is acruco to the left of acruco ID 2
-                        # P  World point (ID 2 or 4)
-                        # p result point projected back to the camera frame
-                        # _p should be
+
                         # ID2
                         Rp2 = np.squeeze(rvecs[i2], axis=None)
                         R2, _ = cv2.Rodrigues(Rp2)
@@ -386,11 +316,6 @@ with dai.Device(pipeline) as device:
                         print("_p_id2_cam:{} vs p_id2_cam:{}".format(_p_id2_cam,p_id2_cam))
 
 
-
-
-
-
-
                     imaxis = cv2.drawFrameAxes(imaxis, mtx, distortion, rvecs[i], tvecs[i], length_of_axis)
 
                     corner = corners[i]
@@ -409,26 +334,6 @@ with dai.Device(pipeline) as device:
                     cv2.putText(imaxis, f"Z: {int(1000*tvecs[i][0][2])} mm",
                                 (x_mid + 10, y_mid + 55), fontType, 0.5, color)
 
-                        # cv2.circle(imaxis, (165, 171), 5, (0, 0, 255), -1)
-                #         rvec = np.squeeze(rvecs[0], axis=None)
-                #                 #         tvec = np.squeeze(tvecs[0], axis=None)
-                #         tvec = np.expand_dims(tvec, axis=1)
-                #         rvec_matrix = cv2.Rodrigues(rvec)[0]
-                #
-                #         proj_matrix = np.hstack((rvec_matrix, tvec))
-                #
-                #         # proj_matrix_inv = np.hstack((np.linalg.inv(rvec_matrix),-tvec))
-                #         # world_point = np.array([depthData.spatialCoordinates.x,depthData.spatialCoordinates.y,depthData.spatialCoordinates.z,1000.0])/1000.0
-                #         # #world_pointT = np.transpose(world_point)
-                #         # proj_wpinv = np.matmul(proj_matrix_inv,world_point)
-                #         # proj_wp = np.matmul(proj_matrix,world_point)
-                #         # print("PT from:\n{}\nPT to inv:\n{}\nPt to orig:\n{}\n______".format(world_point,proj_wpinv,proj_wp))
-                #
-                #         # print("proj matrix\n",proj_matrix)
-                #         euler_angles = cv2.decomposeProjectionMatrix(proj_matrix)[6]
-                #         cv2.putText(imaxis, 'X: ' + str(int(euler_angles[0])), (10, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255))
-                #         cv2.putText(imaxis, 'Y: ' + str(int(euler_angles[1])), (115, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0))
-                #         cv2.putText(imaxis, 'Z: ' + str(int(euler_angles[2])), (200, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 0, 0))
             cv2.imshow('Aruco', imaxis)
 
             if len(topLeft):

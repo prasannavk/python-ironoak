@@ -6,6 +6,8 @@ import cv2
 import depthai as dai
 import numpy as np
 import time
+from networktables import NetworkTables
+import json
 import argparse
 import threading
 
@@ -30,6 +32,9 @@ class person_detector:
         # Create pipeline
         self.pipeline = dai.Pipeline()
 
+        NetworkTables.initialize(server='192.168.1.252')
+        self.sd = NetworkTables.getTable("SmartDashboard")
+
         if self.inputSrc == "Camera":
             camRgb = self.pipeline.create(dai.node.ColorCamera)
             spatialDetectionNetwork = self.pipeline.create(dai.node.MobileNetSpatialDetectionNetwork)
@@ -38,7 +43,8 @@ class person_detector:
             stereo = self.pipeline.create(dai.node.StereoDepth)
             objectTracker = self.pipeline.create(dai.node.ObjectTracker)
 
-            xoutRgb = self.pipeline.create(dai.node.XLinkOut)
+            # xoutRgb = self.pipeline.create(dai.node.XLinkOut)
+            xoutRgb = self.pipeline.createXLinkOut()
             trackerOut = self.pipeline.create(dai.node.XLinkOut)
 
             xoutRgb.setStreamName("preview")
@@ -154,7 +160,11 @@ class person_detector:
             return (self.isDetected, self.x1, self.y1, self.x2, self.y2)
 
     def detectPerson(self):
+
         with dai.Device(self.pipeline) as device:
+
+            frameST = st.empty()
+            device.startPipeline()
 
             if self.inputSrc == "Video":
                 qIn = device.getInputQueue(name="inFrame")
@@ -239,9 +249,9 @@ class person_detector:
 
                         cv2.rectangle(trackerFrame, (self.x1, self.y1), (self.x2, self.y2), color, cv2.FONT_HERSHEY_SIMPLEX)
 
-                    with st.empty():
-                        st.image(trackerFrame, channels='BGR')
-                        time.sleep(0.2)
+                    # with st.empty():
+                    frameST.image(trackerFrame, channels='BGR')
+                    #     time.sleep(0.05)
 
                     if not trackletsData:
                         self.isDetected = False
@@ -259,7 +269,7 @@ class person_detector:
                 fps = 0
                 color = (255, 255, 255)
 
-                frameST = st.empty()
+                # frameST = st.empty()
 
                 while (True):
                     imgFrame = preview.get()
@@ -291,8 +301,17 @@ class person_detector:
                         cv2.putText(frame, f"Depth: {int(t.spatialCoordinates.z)} mm", (self.x1 + 10, self.y1 + 95),
                                     cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
 
-                        with frameST.empty():
-                            frameST.image(frame, channels='BGR')
+                        data = {}
+                        data['x1'] = self.x1
+                        data['y1'] = self.y1
+                        data['x2'] = self.x2
+                        data['y2'] = self.y2
+                        data['depth'] = self.depth
+                        json_data = json.dumps(data)
+                        self.sd.putString("Person Detector", json_data)
+
+                        #with frameST.empty():
+                        frameST.image(frame, channels='BGR')
 
                         #if label == "person":
                         #    return True, self.x1, self.x2, self.y1, self.y2, self.depth

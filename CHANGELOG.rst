@@ -32,3 +32,8 @@ Changelog
 * Used Streamlit to add a basic user interface with the ability to modify input source, video file, model file, and confidence threshold.
 * Included a video preview in the UI.
 
+0.0.5 (2022-09-10)
+------------------
+
+* Added NetworkTables functionality.
+* Made final modifications.

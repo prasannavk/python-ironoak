@@ -7,7 +7,7 @@ import cv2
 import depthai as dai
 import numpy as np
 from cv2 import aruco  # dont know why this is red underlined doesnet seem to have a problem
-
+import transforms3D as xfm
 
 def mycomposeRt(R,t):
     '''
@@ -273,7 +273,9 @@ with dai.Device(pipeline) as device:
             ones = np.ones(3)
 
             if tvecs is not None: #tvecs is not None:
+                print("ids: {} {}".format(ids.shape,type(ids)))
                 IDs = np.squeeze(ids)
+                print("IDs: {} {}".format(IDs.shape,type(IDs)))
                 for I,i in zip(IDs, range(len(tvecs))):
                     if i == 0:
                         i2 = 0
@@ -281,28 +283,53 @@ with dai.Device(pipeline) as device:
                         if I == 4:
                             i2 = 1
                             i4 = 0
-
+                        wanted_indx = [2,4]
+                        T4x4 = xfm.Xfm(rvecs,tvecs,ids,wanted_indx)
                         # ID2
+                        print("rvecs[i2]: {} {}".format(rvecs[i2].shape,type(rvecs[i2])))
                         Rp2 = np.squeeze(rvecs[i2], axis=None)
+                        print("Rp2: {} {}".format(Rp2.shape, type(Rp2)))
                         R2, _ = cv2.Rodrigues(Rp2)
+                        print("R2: {} {}".format(R2.shape,type(R2)))
                         t2 = np.squeeze(tvecs[i2], axis=None)
-                        P_0id2 = my3to4pt(t2)
-                        T_cam_id2 = mycomposeRt(R2,t2)
-                        T_id2_cam = myinvertT(T_cam_id2)  #invert this
+                        print("tvecs[i2]: {}".format(tvecs[i2].shape))
+                        print("t2: {}".format(t2.shape))
+
+                        # P_0id2 = my3to4pt(t2)
+                        # T_cam_id2 = mycomposeRt(R2,t2)
+                        # T_id2_cam = myinvertT(T_cam_id2)  #invert this
+
+                        P_0id2 = T4x4.p3_to_4(t2)
+                        T_cam_id2 = T4x4.compose_Rt(Rp2,t2)
+                        T_id2_cam = T4x4.invertT(T_cam_id2)  #invert this
 
                         # ID4
                         Rp4 = np.squeeze(rvecs[i4], axis=None)
                         R4, _ = cv2.Rodrigues(Rp4)
                         t4 = np.squeeze(tvecs[i4], axis=None)
-                        P_0id4 = my3to4pt(t4)
-                        T_cam_id4 = mycomposeRt(R4,t4)
-                        T_id4_cam = myinvertT(T_cam_id4)
+                        # P_0id4 = my3to4pt(t4)
+                        # T_cam_id4 = mycomposeRt(R4,t4)
+                        # T_id4_cam = myinvertT(T_cam_id4)
+
+                        P_0id4 = T4x4.p3_to_4(t4)
+                        T_cam_id4 = T4x4.compose_Rt(Rp4, t4)
+                        T_id4_cam = T4x4.invertT(T_cam_id4)
 
                         # Other points
                         p_m4x = np.array([-length_of_axis * 4, 0., 0.,1.]) # From the point of view of ID2, this is center of ID4
                         p_000 = np.array([0,0,0,1], dtype = float)
                         p_id2_cam = T_id2_cam.dot(p_000) #Camera from id2 frame
                         p_id4_cam = T_id4_cam.dot(p_000) #Camera from id4 frame
+
+                        T2_4 = T4x4.Tidx_idy(2,4)
+                        T4_2 = T4x4.Tidx_idy(4,2)
+
+                        myP4_id2cam = T4_2.dot(p_id2_cam) #Take points in 2 to ID 4 coordinate system
+                        myP2_id4cam = T2_4.dot(p_id4_cam) #Take points in 4 to ID 2 coordinate system
+                        print("T4x4:: T2_4(id2cam) {} =? p_id4cam {}".format(myP4_id2cam,p_id4_cam))
+                        print("T4x4:: T4_2(id4cam) {} =? p_id2cam {}".format(myP2_id4cam,p_id2_cam))
+                        P4_2_p_m4x = T4_2.dot(p_m4x)
+                        print("p4_2_p_m4x should be zero {}".format(P4_2_p_m4x))
 
                         _P_0id4 = T_cam_id2.dot(p_m4x) #Should be P_0id4 -- point in the center of ID4 in camera frame
                         _p_m4x = T_id2_cam.dot(P_0id4) # Center of ID4_cam should be p_m4x from ID2 coordinate frame

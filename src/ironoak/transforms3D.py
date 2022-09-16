@@ -42,14 +42,27 @@ class Xfm:
         Tx_y(start,stop) #to return any single or joint multiple transform in either direction
     '''
 
+    ################### CLASS INIT AND SETTING OF MEMBERS ###################
+
+    '''
+     You can pass a vector of 4x4 Transforms from camera to each seen fiducial/aruco target
+     and/or a vector of aruco IDs. If not, they default to zero lists [].
+     Args:
+         T_cams (): 4x4 Transform from camera to Aruco fiducial (or None Default)
+         T_ids (): Id of Aruco fiducial (or None)
+     '''
     def __init__(self, rvecs = None, tvecs = None, ids = None, ids_to_choose=None, T_cams = None, T_ids = None):
         '''
-        You can pass a vector of 4x4 Transforms from camera to each seen fiducial/aruco target
-        and/or a vector of aruco IDs. If not, they default to zero lists [].
+        Constructor to set up transform chains
         Args:
-            T_cams (): 4x4 Transform from camera to Aruco fiducial (or None Default)
-            T_ids (): Id of Aruco fiducial (or None)
+            rvecs ():
+            tvecs ():
+            ids ():
+            ids_to_choose ():
+            T_cams ():
+            T_ids ():
         '''
+
         if rvecs is not None and tvecs is not None and ids is not None and ids_to_choose is not None:
             # Squeeze everything just in case there are undeeded dimensions
             rvecs = np.squeeze(rvecs)
@@ -109,6 +122,7 @@ class Xfm:
             self.Tids_inv.append([T_ids[i+1],T_ids[i]])
         return len(self.Tids)
 
+    ################### GETTING TRANSFORMS ###################
     def Tidx_idy(self,from_,to):
         '''
         Give a frame Aruco ID "from_" and an Acruco ID "to", return the associated transform between those frames
@@ -222,8 +236,7 @@ class Xfm:
             forward = False
         return start, stop, forward
 
-    ########################
-    ## UTILITY FUNCTIONS
+    ################### UTILITY FUNCTIONS ###################
     def type_np(self,v):
         '''
         Test if numpy array
@@ -260,22 +273,6 @@ class Xfm:
             raise ValueError("T {} {} not numpy array or 4x4".format(type(T),T.shape))
         return np.linalg.inv(T)
 
-    # def rvecs_tvecs_to_Tlist(self,rvecs,tvecs):
-    #     '''
-    #     Create Transform 4x4 list from rvecs, tvecs
-    #     corners, ids, rejectedImgPoints = aruco.detectMarkers(...)
-    #     rvecs, tvecs, trash = aruco.estimatePoseSingleMarkers(corners,...)
-    #     Args:
-    #         rvecs ():
-    #         tvecs ():
-    #
-    #     Returns:
-    #
-    #     '''
-    #     Tlist = []
-    #     for r,t in zip(rvecs,tvecs):
-    #         Tlist.append(self.compose_Rt(r,t))
-    #     return Tlist
     def compose_Rt(self,R, t):
         '''
         Compose a (3x1) or (3,) or 3x3 R rotation, and 3x1 t translation into a 4x4 transfrom T
